@@ -23,6 +23,8 @@ public class Rule {
 	public String constant;
 	public String adjustDate;
 	public String adjustDateElement;
+	public String calculateYears;
+	public String calYearsColumn;
 	
 	public Rule(String ruleString) {
 		String[] array = ruleString.split("\\|");
@@ -68,6 +70,10 @@ public class Rule {
 						this.calDaysColumn1 = ruleParts[1];
 					if(ruleParts.length>=3)
 						this.calDaysColumn2 = ruleParts[2];
+					break;
+				case "calculateyears":
+					if(ruleParts.length>=2)
+						this.calYearsColumn = ruleParts[1];
 					break;
 				case "total&date":
 					if(ruleParts.length>=2)

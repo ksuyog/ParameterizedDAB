@@ -173,9 +173,16 @@ public class LineTokenizer {
 						break;
 					}
 				}
+				if(dateColsIndex[k-1] == 0) {
+					dateColsIndex[k-1] = -1;
+				}
 			}
 			
 			for(int colIndex:dateColsIndex) {
+				if(colIndex == -1) {
+					continue;
+				}
+
 				String originalValue = this.cols[colIndex];
 				String dateValue = this.cols[colIndex].trim();			
 				if(!dateValue.equals("") && !dateValue.equals(" ")) {
@@ -450,9 +457,12 @@ public class LineTokenizer {
 		}	
 	}
 	
-	public void calculateDays(Rule rule) {
+	public void calculateDays(Rule rule, boolean isCalculateYears) {
 		try {
 			String dateCol1 = rule.calDaysColumn1;
+			if(isCalculateYears) {
+				dateCol1 = rule.calYearsColumn;
+			}
 			String dateCol2 = rule.calDaysColumn2;
 			int dateCol1Index;
 			int dateCol2Index;
@@ -495,6 +505,9 @@ public class LineTokenizer {
 						
 						Period p = Period.between(date1, date2);
 						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
 						lineBuilder.append(headerToken.source.separator+ days);
 						return;
 					} else if(currDateFormat.equals("yyyy/MM/dd")) {
@@ -511,6 +524,9 @@ public class LineTokenizer {
 						
 						Period p = Period.between(date1, date2);
 						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
 						lineBuilder.append(headerToken.source.separator+ days);
 						return;
 					}
@@ -525,6 +541,9 @@ public class LineTokenizer {
 						if(currDateFormat.equals("yyyy-MM-dd")) {
 							date1 = LocalDate.of(Integer.parseInt(mmddyy[0]), Integer.parseInt(mmddyy[1]), Integer.parseInt(mmddyy[2]));
 						}else if(currDateFormat.equals("MM-dd-yyyy")) {
+							if(mmddyy[2].length()==2) {
+								mmddyy[2] = "19" + mmddyy[2];
+							}
 							date1 = LocalDate.of(Integer.parseInt(mmddyy[2]), Integer.parseInt(mmddyy[0]), Integer.parseInt(mmddyy[1]));
 						}
 						
@@ -540,6 +559,9 @@ public class LineTokenizer {
 						
 						Period p = Period.between(date1, date2);
 						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
 						lineBuilder.append(headerToken.source.separator+ days);
 					}else {
 						lineBuilder.append(headerToken.source.separator);
@@ -560,6 +582,9 @@ public class LineTokenizer {
 						
 						Period p = Period.between(date1, date2);
 						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
 						lineBuilder.append(headerToken.source.separator+ days);
 						return;
 					}
@@ -587,6 +612,9 @@ public class LineTokenizer {
 						
 						Period p = Period.between(date1, date2);
 						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
 						lineBuilder.append(headerToken.source.separator+ days);
 					}else {
 						lineBuilder.append(headerToken.source.separator);
@@ -868,14 +896,21 @@ public class LineTokenizer {
 		String dateValueOldCol = rule.sourceColoumn;
 		String[] dest = rule.destinationColumn;
 		String dateValueNewCol = dest[0];
-		
-		for(int i=0;i<this.headerToken.originalHeaderCols.length;i++) {
-			if(dateValueOldCol.equals(headerToken.originalHeaderCols[i])) {
-				int dateColIndex = i;
-				dateValueOld = this.cols[dateColIndex];
-				break;
+		try {
+			for(int i=0;i<this.headerToken.originalHeaderCols.length;i++) {
+				if(dateValueOldCol.equals(headerToken.originalHeaderCols[i])) {
+					int dateColIndex = i;
+					dateValueOld = this.cols[dateColIndex];
+					break;
+				}
 			}
+		}catch(ArrayIndexOutOfBoundsException ae) {
+			System.out.println(dateValueOldCol +" parsing error on line "+ line);
+			//ae.printStackTrace();
+			return;
 		}
+		
+		
 		SimpleDateFormat formatterOld = null,formatterNew=null;
 		Date old = null;
 		String oldDateConverted=null;
