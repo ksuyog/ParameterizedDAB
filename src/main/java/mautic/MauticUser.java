@@ -10,34 +10,55 @@ public class MauticUser {
 	private String mauticUserName;
 	private String mauticPassword;
 	private String mauticApi;
+	private String mauticSegmentApi;
 	private JsonObject apiRequestObj;
 	
-	public MauticUser(String mauticClient) {
-		switch(mauticClient) {
-		
-		case "ferguson":
-			mauticUserName = "";
-			mauticPassword = "";
-			mauticApi = "";
-			break;
-		case "lvcc":
-			mauticUserName = "";
-			mauticPassword = "";
-			mauticApi = "";
-			break;
-		default:
-			System.out.println("Unkown mautic client");
-			break;
-		}
+	public MauticUser(String mauticUserName, String mauticPassword, String mauticApi) {
+		this.mauticUserName = mauticUserName;
+		this.mauticPassword = mauticPassword;
+		this.mauticApi = mauticApi;	
 	}
 	
-	public void setRecord(String line) {
-		String[] elemets = line.split("|");
-		String[] fieldNames = "firstname|lastname|email|ptype".split("|");
+	public MauticUser(String mauticUserName, String mauticPassword, String mauticApi, String segmentApi) {
+		this.mauticUserName = mauticUserName;
+		this.mauticPassword = mauticPassword;
+		this.mauticApi = mauticApi;	
+		this.mauticSegmentApi = segmentApi;
+	}
+	
+	
+	public void setRecord(String line, String mauticFields) {
+		String[] elements = line.split("\\|");
+		String[] fieldNames = mauticFields.split("\\|");
+		String email;
 		StringBuilder jsonBuilder = new StringBuilder("{");
 		for(int i=0;i<fieldNames.length;i++) {
-			jsonBuilder.append("\"");jsonBuilder.append(fieldNames[i]);jsonBuilder.append("\":");
-			jsonBuilder.append("\"");jsonBuilder.append(elemets[i]);jsonBuilder.append("\"");
+			String fName = fieldNames[i];
+			StringBuilder fValue = new StringBuilder("");
+			if (fieldNames[i].toLowerCase().contains("email")) {
+				String[] emails = new String[2];
+				if (elements[i].contains(",")) {
+					emails = elements[i].split(",");
+				} else if (elements[i].contains(";")) {
+					emails = elements[i].split(";");
+				} else {
+					if (!elements[i].toLowerCase().contains("sms") && !elements[i].toLowerCase().contains("oplin")) {
+						fValue.append(elements[i]);
+					}
+				}
+				
+				for (String em : emails) {
+					if (em!=null && !em.toLowerCase().contains("sms") && !em.toLowerCase().contains("oplin")) {
+						fValue.append(em);
+						break;
+					}
+				}
+			} else {
+				fValue.append(elements[i]);
+			}
+			
+			jsonBuilder.append("\"");jsonBuilder.append(fName);jsonBuilder.append("\":");
+			jsonBuilder.append("\"");jsonBuilder.append(fValue.toString());jsonBuilder.append("\"");
 			if(i!=fieldNames.length-1)
 				jsonBuilder.append(",");
 		}

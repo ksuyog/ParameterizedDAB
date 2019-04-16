@@ -6,13 +6,16 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import org.apache.commons.lang3.*;
 
 public class LineTokenizer {
 
@@ -30,12 +33,7 @@ public class LineTokenizer {
 		this.newLineMap = new HashMap<String,String>();
 	}
 	
-	public void setNewLine(String line, StringBuilder lineBuilder) {
-		
-		
-		
-		
-		
+	public void setNewLine(String line, StringBuilder lineBuilder) {	
 		this.line = line;
 		//this.lineBuilder = lineBuilder;
 		if(headerToken.source.separator.equals(",")) {
@@ -46,8 +44,6 @@ public class LineTokenizer {
 			}
 		}
 			
-		
-	
 		if(headerToken.source.separator.equals("|")) {
 			this.cols = this.line.split("\\|",-1);
 			for(int i=0;i<cols.length;i++) {
@@ -57,6 +53,8 @@ public class LineTokenizer {
 		}
 		/* Converting bad date values to NULL_{COL_NAME} for maintaining consistency */
 		this.normalizeDateCols();
+		/* Converting bad mobile number values to INVALID_MOBILE for maintaining consistency */
+		this.normalizeMobileCol();
 		StringBuilder sb = new StringBuilder("");
 		for(int j=0;j<this.cols.length;j++) {
 			sb.append(this.cols[j]);
@@ -68,6 +66,8 @@ public class LineTokenizer {
 		this.lineBuilder = sb;
 		//this.line = sb.toString();
 	}
+	
+	
 	
 	public void normalizeDateCols() {
 		if(headerToken.source.dateColoumn==null || headerToken.source.dateColoumn.equals(""))
@@ -86,23 +86,62 @@ public class LineTokenizer {
 					}
 				}
 			}
-			
+
 			for(int colIndex:dateColsIndex) {
 				int num =0;
 				String originalValue = this.cols[colIndex];
-				String dateValue = this.cols[colIndex].trim();			
-				if(dateValue.equals("") || dateValue.equals(" ") || dateValue.contains(" ") || dateValue.equals("NULL")) {
+				String dateValue = this.cols[colIndex].trim();	
+				if(dateValue.equals("") || dateValue.equals(" ") || dateValue.equals("NULL")) {
 					this.cols[colIndex] = "NULL_"+dateCols[num];
 					}
 				num++;
 				}
 		}catch(ArrayIndexOutOfBoundsException ae) {
-			System.out.println("[AE]Error in change date: "+ line);
+			System.out.println("[AE]Error in change date format: "+ line);
 		}catch(NullPointerException ne) {
-			System.out.println("[NP]Error in change date: "+ line);
+			System.out.println("[NP]Error in change date format: "+ line);
 		}catch(StringIndexOutOfBoundsException se) {
-			System.out.println("[SE]Error in change date: "+ line);
+			System.out.println("[SE]Error in change date format: "+ line);
 		}
+	}
+	
+	public void normalizeMobileCol() {
+		if (headerToken.source.mobileColumn == null)
+			return;
+		
+		String mobileCol = this.headerToken.source.mobileColumn;
+		String mobileColValue = "";
+		int mobileColIndex = -1;
+		
+		try {
+			if (mobileCol != null) {
+				for(int i=0;i<this.headerToken.originalHeaderCols.length;i++) {
+					if(mobileCol.equals(headerToken.originalHeaderCols[i])) {
+						mobileColValue = this.cols[i].trim();
+						mobileColIndex = i;
+						break;
+					}
+				}
+				
+				String numericValue = mobileColValue.replaceAll("[^0-9]", "");
+				if (StringUtils.isBlank(numericValue) || !StringUtils.isNumericSpace(numericValue)) {
+					this.cols[mobileColIndex] = "INVALID_MOBILE";
+				} else {
+					if (headerToken.source.countryCode != null) {
+						this.cols[mobileColIndex] = headerToken.source.countryCode + numericValue;
+					} else {
+						this.cols[mobileColIndex] = numericValue;
+					}
+				}
+			}		
+		}catch(ArrayIndexOutOfBoundsException ae) {
+			System.out.println("[AE]Error in change mobile format: "+ line);
+		}catch(NullPointerException ne) {
+			System.out.println("[NP]Error in change mobile format: "+ line);
+		}catch(StringIndexOutOfBoundsException se) {
+			System.out.println("[SE]Error in change mobile format: "+ line);
+		}
+					
 	}
 	
 	public void dropColumn() {
@@ -186,7 +225,7 @@ public class LineTokenizer {
 				String originalValue = this.cols[colIndex];
 				String dateValue = this.cols[colIndex].trim();			
 				if(!dateValue.equals("") && !dateValue.equals(" ")) {
-					if(dateValue.contains(" ") || dateValue.equals("NULL") || dateValue.contains("NULL")) { // junk date like "  -  -  " or "NULL_{DATE_COL}"
+					if(dateValue.equals("NULL") || dateValue.contains("NULL")) { // junk date like "  -  -  " or "NULL_{DATE_COL}"
 						/*int startInd = lineBuilder.indexOf(dateValue);
 						String replace = "";
 						Rule[] rules = this.headerToken.source.getRules();
@@ -202,7 +241,27 @@ public class LineTokenizer {
 					}
 					else {
 						SimpleDateFormat formatter1 = null;
-						String currDateFormat = this.headerToken.source.currentDateFormat;
+						
+						/* This is a fix for multiple date formats in the source file 12/9/2018*/
+						String currDateFormat = "";
+						if (this.headerToken.source.currentDateFormat!= null && this.headerToken.source.currentDateFormat.contains(",")) {
+							String[] currentDateFormats = this.headerToken.source.currentDateFormat.split(",");
+							boolean error = false;
+							for (String format:currentDateFormats) {
+								formatter1 = new SimpleDateFormat(format);
+								error = false;
+								try {
+									formatter1.parse(dateValue);
+								}catch(ParseException e) {
+									error = true;
+								}
+								if (!error) {
+									currDateFormat = format;
+								}
+							}
+						}else {
+							currDateFormat = this.headerToken.source.currentDateFormat;
+						}
 						String convertDateFormat = this.headerToken.source.convertDateFormat;
 						if(dateValue.length()>9) {
 							formatter1 = new SimpleDateFormat(currDateFormat);
@@ -343,6 +402,7 @@ public class LineTokenizer {
 				addressLikeString = rule.secondAdreessString;
 			}
 			String[] destColValues = new String[rule.destinationColumn.length];
+			Arrays.fill(destColValues, "");
 				
 			if(addressValue.equals("") || addressValue.equals(" ")) {
 				//TODO:
@@ -487,7 +547,29 @@ public class LineTokenizer {
 			}
 			
 			if(!date1Value.equals("") && !date1Value.equals(" ") && !date1Value.equals("NULL") && !date1Value.contains("NULL")) {
-				String currDateFormat = this.headerToken.source.currentDateFormat;
+				SimpleDateFormat formatter1 = null;
+				String currDateFormat = "";
+				if (this.headerToken.source.currentDateFormat!= null && this.headerToken.source.currentDateFormat.contains(",")) {
+					String[] currentDateFormats = this.headerToken.source.currentDateFormat.split(",");
+					boolean error = false;
+					for (String format:currentDateFormats) {
+						formatter1 = new SimpleDateFormat(format);
+						error = false;
+						try {
+							formatter1.parse(date1Value);
+						}catch(ParseException e) {
+							error = true;
+						}catch (DateTimeParseException de) {
+							error = true;
+						}
+						if (!error) {
+							currDateFormat = format;
+						}
+					}
+				}else {
+					currDateFormat = this.headerToken.source.currentDateFormat;
+				}
+				
 				String convertDateFormat = this.headerToken.source.convertDateFormat;
 				if(convertDateFormat!=null && convertDateFormat.equals("yyyy-MM-dd")) {
 					
@@ -529,7 +611,61 @@ public class LineTokenizer {
 						}
 						lineBuilder.append(headerToken.source.separator+ days);
 						return;
+					} else if (date1Value.contains("/") && !currDateFormat.contains(" ")) {  // BUG FIX 1/14/2019
+						String[] groups = date1Value.split("/");
+						StringBuffer sb = new StringBuffer("");
+						sb.append(groups[0].length() == 1?"M":"MM");
+						sb.append(groups[1].length() == 1?"/d":"/dd");
+						sb.append(groups[2].length() == 2?"/yy":"/yyyy");
+						System.out.println(sb.toString());
+						SimpleDateFormat ft = new SimpleDateFormat(sb.toString());
+						Date dt = ft.parse(date1Value);
+						LocalDate date1 = LocalDate.parse(date1Value, DateTimeFormatter.ofPattern(sb.toString()));
+						LocalDate date2 = null;
+						if(date2Value!=null && !date2Value.equals("") && !date2Value.equals(" ") && !date2Value.contains("NULL")) {
+							date2 = LocalDate.parse(date2Value, DateTimeFormatter.BASIC_ISO_DATE);
+						}
+						else {
+							date2 = LocalDate.now();
+						}
+						
+						Period p = Period.between(date1, date2);
+						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
+						lineBuilder.append(headerToken.source.separator+ days);
+						return;
+					}else if (currDateFormat.contains(" ")) {  // BUG FIX 2/07/2019
+						/*String[] groups = date1Value.split("/");
+						StringBuffer sb = new StringBuffer("");
+						sb.append(groups[0].length() == 1?"M":"MM");
+						sb.append(groups[1].length() == 1?"/d":"/dd");
+						sb.append(groups[2].length() == 2?"/yy":"/yyyy");
+						System.out.println(sb.toString());*/
+						SimpleDateFormat ft = new SimpleDateFormat(currDateFormat);
+						Date dt = ft.parse(date1Value);
+						LocalDate date1 = LocalDate.parse(date1Value, DateTimeFormatter.ofPattern(currDateFormat));
+						LocalDate date2 = null;
+						if(date2Value!=null && !date2Value.equals("") && !date2Value.equals(" ") && !date2Value.contains("NULL")) {
+							date2 = LocalDate.parse(date2Value, DateTimeFormatter.BASIC_ISO_DATE);
+						}
+						else {
+							date2 = LocalDate.now();
+						}
+						
+						Period p = Period.between(date1, date2);
+						long days = ChronoUnit.DAYS.between(date1, date2);
+						if(isCalculateYears) {
+							days = ChronoUnit.YEARS.between( date1 , date2 );
+						}
+						lineBuilder.append(headerToken.source.separator+ days);
+						return;
 					}
+					
+					
+					
+					
 					
 					
 					
@@ -632,6 +768,8 @@ public class LineTokenizer {
 			System.out.println("[SE]Error in calculatedays: "+ line);
 		} catch (ParseException e) {
 			System.out.println("[PE]Error in calculatedays: "+ line);
+		} catch(DateTimeParseException e) {
+			System.out.println("[DE]Error in calculatedays: "+ line);
 		}
 		
 	}
@@ -1006,4 +1144,43 @@ public class LineTokenizer {
 		return convertedDate;
 	}
 	
+	public void formatMobileNumbers() {
+		if ( headerToken.source.mobileColumn == null) {
+			return;
+		} else {
+			String mobileColName = headerToken.source.getMobileColumn();
+			String currentMobileNumber = "";
+			try {
+				for(int i=0;i<this.headerToken.originalHeaderCols.length;i++) {
+					if(mobileColName.equals(headerToken.originalHeaderCols[i])) {
+						int mobileColIndex = i;
+						currentMobileNumber = this.cols[mobileColIndex].trim();
+						break;
+					}
+				}
+			}catch(ArrayIndexOutOfBoundsException ae) {
+				System.out.println(currentMobileNumber +" parsing error on line "+ line);
+				//ae.printStackTrace();
+				return;
+			}
+			
+			if (currentMobileNumber.equals("INVALID_MOBILE")) {
+				int startInd = lineBuilder.indexOf("INVALID_MOBILE");
+				lineBuilder.replace(startInd, startInd + "INVALID_MOBILE".length(),"" );
+			} else if (!StringUtils.isEmpty(currentMobileNumber) && StringUtils.isAlphanumeric(currentMobileNumber)) {
+				StringBuilder number = new StringBuilder(currentMobileNumber.replaceAll("[^0-9]", ""));
+				
+				if (headerToken.source.countryCode != null) {
+					number.append(headerToken.source.countryCode);
+				}
+				int startInd = lineBuilder.indexOf(currentMobileNumber);
+				lineBuilder.replace(startInd, startInd + currentMobileNumber.length(), number.toString() );
+			}
+			
+			
+			
+		}
+			
+					
+	}
 }

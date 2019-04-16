@@ -43,6 +43,7 @@ public class Source {
 	public String convertDateFormat;
 	public String awsBucketName;
 	public String awsDirectory;
+	public String awsRegion;
 	public String rawDatabaseDirectory;
 	public int loadFile_MaxSize;
 	public String dropRecord;
@@ -52,7 +53,13 @@ public class Source {
 	public String rawDatabseColumns; //String denoting column names from rawDB file 
 	public String recordFormat;
 	public String mixedCase;
-	
+	public String mauticUserName;
+	public String mauticPassword;
+	public String mauticApi;
+	public String mauticfields;
+	public String segmentId;
+	public String mobileColumn;
+	public String countryCode;
 
 	public Source() {
 		sourceName = "";
@@ -251,17 +258,89 @@ public class Source {
 		this.setConvertDateFormat(properties.getProperty("convertdates"));
 		this.setAwsBucketName(properties.getProperty("awsbucketname"));
 		this.setAwsDirectory(properties.getProperty("awsdirectory"));
+		this.setAwsRegion(properties.getProperty("awsregion"));
 		if(properties.getProperty("loadfile_maxsize")!=null)
 			this.setLoadFile_MaxSize(Integer.parseInt(properties.getProperty("loadfile_maxsize")));
 		this.setDropRecord(properties.getProperty("droprecord"));
 		this.setSeparator(properties.getProperty("separator"));
 		this.setStripPartial(properties.getProperty("strippartial"));
-		this.setRules(properties.getProperty("rule"));
+		if(properties.getProperty("rule")!=null)
+			this.setRules(properties.getProperty("rule"));
 		this.setMixedCase(properties.getProperty("mixedcase"));
 		this.setDBDirectory(properties.getProperty("rawdatabasedirectory"));
-		
+		this.setMauticApi(properties.getProperty("mauticapi"));
+		this.setMauticPassword(properties.getProperty("mauticpassword"));
+		this.setMauticUserName(properties.getProperty("mauticusername"));
+		this.setMauticfields(properties.getProperty("mauticfields"));
+		this.setSegmentId(properties.getProperty("segmentId", "-100"));
+		this.setMobileColumn(properties.getProperty("mobilecolumn"));
+		this.setCountryCode(properties.getProperty("countrycode"));
 	}
 	
+	public void setAwsRegion(String awsRegion) {
+		this.awsRegion = awsRegion;
+	}
+	
+	public String getAwsRegion() {
+		return this.awsRegion;
+	}
+	
+	public void setMobileColumn(String mobileCol) {
+		this.mobileColumn = mobileCol;
+	}
+	
+	public String getMobileColumn() {
+		return this.mobileColumn;
+	}
+	
+	public void setCountryCode(String countryCode) {
+		this.countryCode = countryCode;
+	}
+	
+	public String getCountryCode() {
+		return this.countryCode;
+	}
+	
+	public String getSegmentId() {
+		return segmentId;
+	}
+
+	public void setSegmentId(String segmentId) {
+		this.segmentId = segmentId;
+	}
+
+	public String getMauticfields() {
+		return mauticfields;
+	}
+
+	public void setMauticfields(String mauticfields) {
+		this.mauticfields = mauticfields;
+	}
+
+	public String getMauticUserName() {
+		return mauticUserName;
+	}
+
+	public void setMauticUserName(String mauticUserName) {
+		this.mauticUserName = mauticUserName;
+	}
+
+	public String getMauticPassword() {
+		return mauticPassword;
+	}
+
+	public void setMauticPassword(String mauticPassword) {
+		this.mauticPassword = mauticPassword;
+	}
+
+	public String getMauticApi() {
+		return mauticApi;
+	}
+
+	public void setMauticApi(String mauticApi) {
+		this.mauticApi = mauticApi;
+	}
+
 	public String getDBDirectory() {
 		return this.rawDatabaseDirectory;
 	}

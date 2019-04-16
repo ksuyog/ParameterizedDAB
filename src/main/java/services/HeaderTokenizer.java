@@ -15,7 +15,7 @@ public class HeaderTokenizer {
 			this.originalHeaderCols = originalHeader.split(",(?=(?:[^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)", -1);
 			for (int i = 0; i < originalHeaderCols.length; i++) {
 				String st = originalHeaderCols[i].replaceAll("\"", "");
-				originalHeaderCols[i] = st;
+				originalHeaderCols[i] = st.trim();
 			}
 		}
 
@@ -23,9 +23,15 @@ public class HeaderTokenizer {
 			this.originalHeaderCols = originalHeader.split("\\|");
 			for (int i = 0; i < originalHeaderCols.length; i++) {
 				String st = originalHeaderCols[i].replaceAll("\"", "");
-				originalHeaderCols[i] = st;
+				originalHeaderCols[i] = st.trim();
 			}
 		}
+		String tempHeader = String.join(source.separator, originalHeaderCols);
+		// if original header has spaces at the start or end of a column name, then temp header(without spaces) and original will be different
+		if (!tempHeader.equals(this.originalHeader)) {
+			this.originalHeader = tempHeader;
+		}
+		 
 
 	}
 

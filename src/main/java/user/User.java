@@ -61,8 +61,8 @@ public class User {
         }
 
         Options options = new Options();
-        options.addOption("f", "fileName", false, "File name to be read from s3");
-        options.addOption("m", "mautic client", false, "Mautic Client");
+        options.addOption("f", "fileName", true, "File name to be read from s3");
+        options.addOption("c", "config file", true, "config file");
   
 
         CommandLineParser parser = new DefaultParser();
@@ -80,14 +80,31 @@ public class User {
         try {
     	   
         		AmazonS3 s3 = new AmazonS3Client(credentials);
-        		Region usEast2 = Region.getRegion(Regions.US_EAST_2);
-        		s3.setRegion(usEast2);
+        		//Region usEast2 = Region.getRegion(Regions.US_EAST_2);
+        		//s3.setRegion(usEast2);
            
-        		if(cmd.hasOption("f") && cmd.hasOption("m")) {
+        		//Flow 1: Mautic REST update 
+        		if(cmd.hasOption("f") && cmd.hasOption("c")) {
         			String mauticFileName = cmd.getOptionValue("f");
-        			String mauticClient = cmd.getOptionValue("m");
-        			Source source = new Source();
-        			source.awsBucketName = "dab"; source.awsDirectory = "mautic"; source.sourceFileName = mauticFileName;
+        			String conf = cmd.getOptionValue("c");
+        			File configFile = new File(conf);
+            		if(!configFile.exists()) {
+            			System.out.println("Config file does not exists");
+            			System.exit(0);
+            		}
+               
+            		Source source = new Source();
+            		source.readConfigFile(configFile);
+            		if (source.awsRegion!=null) {
+            			s3.setRegion(Region.getRegion(Regions.fromName(source.awsRegion)));
+            		} else {
+            			s3.setRegion(Region.getRegion(Regions.US_EAST_2));
+            		}
+            		
+            		source.setSourceFileName(mauticFileName);
+            		System.out.println("AWS Bucket: " + source.awsBucketName);
+            		System.out.println("AWS Directory: " + source.awsDirectory);
+            		System.out.println("Source File Name: " + source.sourceFileName);
         			File temp = source.getTempFile(s3, false);
         			BufferedReader readBuffer = null; String line; StringBuilder lineBuilder;
         			int createCount = 0;
@@ -95,28 +112,49 @@ public class User {
         				readBuffer = new BufferedReader(new FileReader(temp));
             			// First line should contain headers
 						readBuffer.readLine();
-						MauticUser mUser = new MauticUser(mauticClient);
+						MauticUser mUser = new MauticUser(source.mauticUserName, source.mauticPassword, source.mauticApi);
 						Service service = new Service();
 						while((line = readBuffer.readLine())!=null) {
-        					mUser.setRecord(line);
+							int id;
+        					try {
+        						mUser.setRecord(line, source.mauticfields);
+        						} catch(Exception ex) {
+        							System.out.println("Error processing line: " + line);
+        							System.out.println("Skipping: " + line);
+        							continue;
+        						}
         					JsonObject responseObject = service.create(mUser);
         					if(Optional.ofNullable(responseObject.getJsonArray("errors")).isPresent()) {
         						System.out.println("Error creating contact: " + line);
         					}else {
         						createCount++;
-        						System.out.println("Successfully created contact: "+ line);
+        						JsonObject contact = responseObject.getJsonObject("contact");
+    							id = Optional.ofNullable(contact.getInt("id")).orElse(-1);
+        						System.out.println("Successfully created contact: "+ line + " with id " + id);
+        						if (!source.getSegmentId().equals("-100")) {
+        							responseObject = service.addToSegment(mUser, source.getSegmentId(), id);
+        							Optional<Integer> segmentStatus = Optional.ofNullable(responseObject.getInt("success"));
+        							if (segmentStatus.isPresent()) {
+        								if (segmentStatus.get().longValue() == 1) {
+            								System.out.println("Successfully added contact: "+ line + " with id " + id + " to segmentId "+ source.getSegmentId());
+            							}else {
+            								System.out.println("Error adding contact: "+ line + " with id " + id + "  to segmentId "+ source.getSegmentId());
+            							}
+        							}else {
+        								System.out.println("Error adding contact: "+ line + " with id " + id + "  to segmentId "+ source.getSegmentId());
+        							}  						
+        						}
         					}
         				}
-        				readBuffer.close();
-						
-						
-						
+        				readBuffer.close();	
 					} catch (IOException e) {
 						e.printStackTrace();
 					} 
         			
         			System.out.println("Number of Contacts created: "+ createCount);
         		}
+        		
+        		// Flow 2: DAB using S3 files
         		else {
 
             		/* Reading the properties file*/
@@ -131,7 +169,11 @@ public class User {
                
             		Source source = new Source();
             		source.readConfigFile(configFile);
-               
+            		if (source.awsRegion!=null) {
+            			s3.setRegion(Region.getRegion(Regions.fromName(source.awsRegion)));
+            		} else {
+            			s3.setRegion(Region.getRegion(Regions.US_EAST_2));
+            		}
             		/* Read the rawDB file is required*/
             		File rawDB = null;
             		if(source.rawDatabaseRequired) {
@@ -314,8 +356,10 @@ public class User {
             						//System.out.println(lines.lineBuilder.toString().replaceAll("\\|",","));
             						String tempS = lines.lineBuilder.toString().replaceAll("\\|", "");
             						int outColNum = lines.lineBuilder.length() - tempS.length();
+            				
             						if(outColNum!=(header.finalHeaderCols.length-1)) {
             							lines.errorList.add(line);
+            							System.out.println(line);
             						}
             							
             						else {
@@ -330,8 +374,11 @@ public class User {
             								}
             							}
             							
+            							if (outStr.contains("INVALID_MOBILE")) {
+            								outStr = outStr.replace("INVALID_MOBILE", "");
+            							}
+            							
             							writeBuffer.write(outStr.replaceAll("\\|",","));
-            							System.out.println(outStr.replaceAll("\\|",","));
             							writeBuffer.newLine();linesProcessed = linesProcessed + 1;
             						}
             							
@@ -354,6 +401,10 @@ public class User {
             										outStr = outStr.replace("NULL_"+colName, "");
             									}
             								}
+            							}
+            							
+            							if (outStr.contains("INVALID_MOBILE")) {
+            								outStr = outStr.replace("INVALID_MOBILE", "");
             							}
             							
             							writeBuffer.write(outStr.toString());

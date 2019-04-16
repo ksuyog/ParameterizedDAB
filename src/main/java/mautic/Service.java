@@ -23,7 +23,35 @@ public class Service {
 		String authString = mUser.getMauticUserName() + ":" + mUser.getMauticPassword();
 		String authString_encoded =  Base64.getEncoder().encodeToString(authString.getBytes());
 		DefaultHttpClient httpclient = new DefaultHttpClient();
-		HttpPost httpPost = new HttpPost(mUser.getMauticApi() + "contacts/new");
+		String url = mUser.getMauticApi();
+		if(url.endsWith("/")) {
+			url = url + "contacts/new";
+		}else {
+			url = url + "/contacts/new";
+		}
+		HttpPost httpPost = new HttpPost(url);
+		httpPost.setHeader("Authorization", "Basic " + authString_encoded);
+		StringEntity entity = new StringEntity(mUser.getApiRequestObj().toString());
+		httpPost.setEntity(entity);
+		httpPost.setHeader("Accept", "application/json");
+		httpPost.setHeader("Content-type", "application/json");
+		
+		HttpResponse response = httpclient.execute(httpPost);
+        JsonObject responseObj = Json.createReader(new InputStreamReader(response.getEntity().getContent())).readObject();
+        return responseObj;
+	}
+	
+	public JsonObject addToSegment(MauticUser mUser, String segmentId, int contactId) throws ClientProtocolException, IOException {
+		String authString = mUser.getMauticUserName() + ":" + mUser.getMauticPassword();
+		String authString_encoded =  Base64.getEncoder().encodeToString(authString.getBytes());
+		DefaultHttpClient httpclient = new DefaultHttpClient();
+		String url = mUser.getMauticApi();
+		if(url.endsWith("/")) {
+			url = url + "segments/" + Integer.parseInt(segmentId) + "/contact/" + contactId + "/add";
+		}else {
+			url = url + "/segments/" + Integer.parseInt(segmentId) + "/contact/" + contactId + "/add";
+		}
+		HttpPost httpPost = new HttpPost(url);
 		httpPost.setHeader("Authorization", "Basic " + authString_encoded);
 		StringEntity entity = new StringEntity(mUser.getApiRequestObj().toString());
 		httpPost.setEntity(entity);
